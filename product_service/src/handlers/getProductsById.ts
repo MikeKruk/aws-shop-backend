@@ -6,7 +6,7 @@ export async function handler(
 ): Promise<APIGatewayProxyResult> {
 	try {
 		console.log('getProductsById event:', event);
-		const id = Number(event.pathParameters?.productId);
+		const id = event.pathParameters?.productId;
 
 		if (!id) {
 			return {
