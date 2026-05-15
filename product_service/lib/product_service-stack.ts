@@ -23,24 +23,28 @@ export class ProductServiceStack extends cdk.Stack {
 			'Stocks'
 		);
 
-		const getProductsList = new NodejsFunction(this, 'GetProductsList', {
+		const lambdaProps = {
 			runtime: Runtime.NODEJS_LATEST,
-			entry: path.join(__dirname, '../src/handlers/getProductsList.ts'),
 			handler: 'handler',
 			environment: {
 				PRODUCTS_TABLE: productsTable.tableName,
 				STOCKS_TABLE: stocksTable.tableName,
 			},
+		};
+
+		const getProductsList = new NodejsFunction(this, 'GetProductsList', {
+			entry: path.join(__dirname, '../src/handlers/getProductsList.ts'),
+			...lambdaProps,
 		});
 
 		const getProductsById = new NodejsFunction(this, 'GetProductsById', {
-			runtime: Runtime.NODEJS_LATEST,
 			entry: path.join(__dirname, '../src/handlers/getProductsById.ts'),
-			handler: 'handler',
-			environment: {
-				PRODUCTS_TABLE: productsTable.tableName,
-				STOCKS_TABLE: stocksTable.tableName,
-			},
+			...lambdaProps,
+		});
+
+		const createProduct = new NodejsFunction(this, 'CreateProduct', {
+			entry: path.join(__dirname, '../src/handlers/createProduct.ts'),
+			...lambdaProps,
 		});
 
 		const api = new apigateway.RestApi(this, 'ProductServiceApi', {
@@ -60,14 +64,19 @@ export class ProductServiceStack extends cdk.Stack {
 		productsTable.grantReadData(getProductsById);
 		stocksTable.grantReadData(getProductsById);
 
+		productsTable.grantWriteData(createProduct);
+		stocksTable.grantWriteData(createProduct);
+
 		const products = api.root.addResource('products');
 		products.addMethod(
 			'GET',
 			new apigateway.LambdaIntegration(getProductsList)
 		);
+    products.addMethod('POST', new apigateway.LambdaIntegration(createProduct));
 
 		const product = products.addResource('{productId}');
 		product.addMethod('GET', new apigateway.LambdaIntegration(getProductsById));
+		
 
 		new cdk.CfnOutput(this, 'ApiEndpoint', {
 			value: api.url,
