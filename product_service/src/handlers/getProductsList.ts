@@ -1,30 +1,15 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 import { products } from '../mocks/products';
+import { apiResponseFormat } from '../utils/apiResponase';
 
 export async function handler(
 	event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> {
 	try {
 		console.log('getProductsList event:', event);
-		return {
-			statusCode: 200,
-			headers: {
-				'Access-Control-Allow-Origin': '*',
-				'Access-Control-Allow-Credentials': true,
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify(products),
-		};
+		return apiResponseFormat(200, products);
 	} catch (error) {
 		console.error('getProductsList error:', error);
-		return {
-			statusCode: 500,
-			headers: {
-				'Access-Control-Allow-Origin': '*',
-				'Access-Control-Allow-Credentials': true,
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify({ error: 'Internal server error' }),
-		};
+		return apiResponseFormat(500, { error: 'Internal server error' });
 	}
 }
