@@ -1,4 +1,5 @@
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
+import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import { Runtime } from 'aws-cdk-lib/aws-lambda';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as cdk from 'aws-cdk-lib/core';
@@ -11,28 +12,53 @@ export class ProductServiceStack extends cdk.Stack {
 
 		// The code that defines your stack goes here
 
+		const productsTable = dynamodb.Table.fromTableName(
+			this,
+			'ProductsTable',
+			'Products'
+		);
+		const stocksTable = dynamodb.Table.fromTableName(
+			this,
+			'StocksTable',
+			'Stocks'
+		);
+
 		const getProductsList = new NodejsFunction(this, 'GetProductsList', {
 			runtime: Runtime.NODEJS_LATEST,
 			entry: path.join(__dirname, '../src/handlers/getProductsList.ts'),
 			handler: 'handler',
+			environment: {
+				PRODUCTS_TABLE: productsTable.tableName,
+				STOCKS_TABLE: stocksTable.tableName,
+			},
 		});
 
 		const getProductsById = new NodejsFunction(this, 'GetProductsById', {
 			runtime: Runtime.NODEJS_LATEST,
 			entry: path.join(__dirname, '../src/handlers/getProductsById.ts'),
 			handler: 'handler',
+			environment: {
+				PRODUCTS_TABLE: productsTable.tableName,
+				STOCKS_TABLE: stocksTable.tableName,
+			},
 		});
 
 		const api = new apigateway.RestApi(this, 'ProductServiceApi', {
-      restApiName: 'Product Service API',
+			restApiName: 'Product Service API',
 			defaultCorsPreflightOptions: {
 				allowOrigins: apigateway.Cors.ALL_ORIGINS,
 				allowMethods: apigateway.Cors.ALL_METHODS,
 			},
-      deployOptions: {
-        stageName: 'dev'
-      }
+			deployOptions: {
+				stageName: 'dev',
+			},
 		});
+
+		productsTable.grantReadData(getProductsList);
+		stocksTable.grantReadData(getProductsList);
+
+		productsTable.grantReadData(getProductsById);
+		stocksTable.grantReadData(getProductsById);
 
 		const products = api.root.addResource('products');
 		products.addMethod(
@@ -43,9 +69,9 @@ export class ProductServiceStack extends cdk.Stack {
 		const product = products.addResource('{productId}');
 		product.addMethod('GET', new apigateway.LambdaIntegration(getProductsById));
 
-    new cdk.CfnOutput(this, 'ApiEndpoint', {
-      value: api.url,
-      description: 'API endpoint'
-    })
+		new cdk.CfnOutput(this, 'ApiEndpoint', {
+			value: api.url,
+			description: 'API endpoint',
+		});
 	}
 }
