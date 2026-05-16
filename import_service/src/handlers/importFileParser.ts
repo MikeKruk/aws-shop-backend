@@ -29,7 +29,11 @@ export async function handler(event: S3Event) {
 
 		await new Promise((res, rej) => {
 			stream
-				.pipe(csvParser())
+				.pipe(
+					csvParser({
+						separator: ';',
+					})
+				)
 				.on('data', async data => console.log('CSV row', data))
 				.on('end', async () => {
 					try {
@@ -45,13 +49,12 @@ export async function handler(event: S3Event) {
 
 						await client.send(copyCommand);
 						await client.send(deleteCommand);
-            console.log('File moved from uploaded/ to parsed/');
-            res(null);
+						console.log('File moved from uploaded/ to parsed/');
+						res(null);
 					} catch (error) {
-            console.error('importFileParser error:', error);
-            rej(error);
-          }
-					
+						console.error('importFileParser error:', error);
+						rej(error);
+					}
 				})
 				.on('error', error => {
 					console.log('CSV parse error');
