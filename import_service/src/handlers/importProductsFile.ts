@@ -15,7 +15,7 @@ export async function handler(
 	try {
 		const fileName = event.queryStringParameters?.name;
 
-		if (!fileName) {
+		if (!fileName?.trim()) {
 			return apiResponse(400, {
 				message: 'Missing fileName parameter',
 			});
