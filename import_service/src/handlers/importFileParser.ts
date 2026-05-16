@@ -1,4 +1,9 @@
-import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+	CopyObjectCommand,
+	DeleteObjectCommand,
+	GetObjectCommand,
+	S3Client,
+} from '@aws-sdk/client-s3';
 import { S3Event } from 'aws-lambda';
 import csvParser from 'csv-parser';
 import { Readable } from 'stream';
@@ -25,10 +30,28 @@ export async function handler(event: S3Event) {
 		await new Promise((res, rej) => {
 			stream
 				.pipe(csvParser())
-				.on('data', data => console.log(data))
-				.on('end', () => {
-					console.log('CSV parse complete');
-					res(null);
+				.on('data', async data => console.log('CSV row', data))
+				.on('end', async () => {
+					try {
+						const copyCommand = new CopyObjectCommand({
+							Bucket: bucketName,
+							CopySource: `${bucketName}/${key}`,
+							Key: key.replace('uploaded/', 'parsed/'),
+						});
+						const deleteCommand = new DeleteObjectCommand({
+							Bucket: bucketName,
+							Key: key,
+						});
+
+						await client.send(copyCommand);
+						await client.send(deleteCommand);
+            console.log('File moved from uploaded/ to parsed/');
+            res(null);
+					} catch (error) {
+            console.error('importFileParser error:', error);
+            rej(error);
+          }
+					
 				})
 				.on('error', error => {
 					console.log('CSV parse error');
