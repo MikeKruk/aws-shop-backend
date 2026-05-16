@@ -26,8 +26,14 @@ export async function handler(event: S3Event) {
 			stream
 				.pipe(csvParser())
 				.on('data', data => console.log(data))
-				.on('end', res)
-				.on('error', rej);
+				.on('end', () => {
+					console.log('CSV parse complete');
+					res(null);
+				})
+				.on('error', error => {
+					console.log('CSV parse error');
+					rej(error);
+				});
 		});
 	}
 }
