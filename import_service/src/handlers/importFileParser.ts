@@ -8,11 +8,10 @@ import { S3Event } from 'aws-lambda';
 import csvParser from 'csv-parser';
 import { Readable } from 'stream';
 
-const client = new S3Client({
-	region: process.env.REGION,
-});
-
 export async function handler(event: S3Event) {
+	const client = new S3Client({
+		region: process.env.REGION,
+	});
 	console.log('importFileParser event:', event);
 
 	for (const record of event.Records) {
