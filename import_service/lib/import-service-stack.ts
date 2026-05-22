@@ -2,7 +2,6 @@ import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import { Runtime } from 'aws-cdk-lib/aws-lambda';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
-import * as s3notifications from 'aws-cdk-lib/aws-s3-notifications';
 import * as cdk from 'aws-cdk-lib/core';
 import { Construct } from 'constructs';
 import * as path from 'path';
@@ -12,20 +11,11 @@ export class ImportServiceStack extends cdk.Stack {
 		super(scope, id, props);
 
 		// The code that defines your stack goes here
-		const bucket = new s3.Bucket(this, 'import-service-bucket', {
-			bucketName: 'nodejs-aws-shop-react-import-mikemo',
-			removalPolicy: cdk.RemovalPolicy.DESTROY,
-			blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-			autoDeleteObjects: true,
-			cors: [
-				{
-					allowedHeaders: ['*'],
-					allowedMethods: [s3.HttpMethods.PUT, s3.HttpMethods.GET],
-					allowedOrigins: ['*'],
-					exposedHeaders: [],
-				},
-			],
-		});
+		const bucket = s3.Bucket.fromBucketName(
+			this,
+			'import-service-bucket',
+			'nodejs-aws-shop-react-import-mikemo'
+		);
 
 		const lambdaProps = {
 			runtime: Runtime.NODEJS_LATEST,
@@ -64,14 +54,6 @@ export class ImportServiceStack extends cdk.Stack {
 		importResource.addMethod(
 			'GET',
 			new apigateway.LambdaIntegration(importProductsFile)
-		);
-
-		bucket.addEventNotification(
-			s3.EventType.OBJECT_CREATED,
-			new s3notifications.LambdaDestination(importFileParser),
-			{
-				prefix: 'uploaded/',
-			}
 		);
 
 		new cdk.CfnOutput(this, 'ApiEndpoint', {
