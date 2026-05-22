@@ -1,0 +1,48 @@
+openapi: 3.0.0
+info:
+  title: Import Service API
+  description: API for importing products via CSV file in the Shop Market MikeMo
+  version: 1.0.0
+servers:
+  - url: https://lad8hnl2h7.execute-api.eu-north-1.amazonaws.com/dev
+    description: Dev server
+paths:
+  /import:
+    get:
+      summary: Get signed URL for CSV file upload
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+            example: test.csv
+      responses:
+        '200':
+          description: Signed URL for uploading CSV file to S3
+          content:
+            application/json:
+              schema:
+                type: string
+                example: https://nodejs-aws-shop-react-import-mikemo.s3.eu-north-1.amazonaws.com/uploaded/test3.csv?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-...A
+        '400':
+          description: Missing or invalid file name parameter
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Missing fileName parameter
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Internal server error
+
