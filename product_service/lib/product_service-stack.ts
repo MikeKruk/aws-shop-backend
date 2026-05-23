@@ -1,12 +1,14 @@
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import { Runtime } from 'aws-cdk-lib/aws-lambda';
+import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
+import * as sns from 'aws-cdk-lib/aws-sns';
+import * as snsSubscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
 import * as cdk from 'aws-cdk-lib/core';
 import { Construct } from 'constructs';
 import * as path from 'path';
-import * as sqs from 'aws-cdk-lib/aws-sqs';
-import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 
 export class ProductServiceStack extends cdk.Stack {
 	constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -25,9 +27,13 @@ export class ProductServiceStack extends cdk.Stack {
 			'Stocks'
 		);
 
-    const catalogItemsQueue = new sqs.Queue(this, 'CatalogItemsQueue', {
-      queueName: 'catalog-items-queue'
-    });
+		const catalogItemsQueue = new sqs.Queue(this, 'CatalogItemsQueue', {
+			queueName: 'catalog-items-queue',
+		});
+
+		const createProductTopic = new sns.Topic(this, 'CreateProductTopic', {
+			topicName: 'createProductTopic',
+		});
 
 		const lambdaProps = {
 			runtime: Runtime.NODEJS_LATEST,
@@ -53,16 +59,28 @@ export class ProductServiceStack extends cdk.Stack {
 			...lambdaProps,
 		});
 
-    const catalogBatchProcess = new NodejsFunction(this, 'CatalogBatchProcess', {
-      entry: path.join(__dirname, '../src/handlers/catalogBatchProcess.ts'),
-      ...lambdaProps,
-    });
+		const catalogBatchProcess = new NodejsFunction(
+			this,
+			'CatalogBatchProcess',
+			{
+				entry: path.join(__dirname, '../src/handlers/catalogBatchProcess.ts'),
+				...lambdaProps,
+				environment: {
+					SNS_TOPIC_ARN: createProductTopic.topicArn,
+					...lambdaProps.environment,
+				},
+			}
+		);
 
-    catalogBatchProcess.addEventSource(
-      new lambdaEventSources.SqsEventSource(catalogItemsQueue, {
-        batchSize: 5
-      })
-    )
+		createProductTopic.addSubscription(
+			new snsSubscriptions.EmailSubscription('mi.kruk95@gmail.com')
+		);
+
+		catalogBatchProcess.addEventSource(
+			new lambdaEventSources.SqsEventSource(catalogItemsQueue, {
+				batchSize: 5,
+			})
+		);
 
 		const api = new apigateway.RestApi(this, 'ProductServiceApi', {
 			restApiName: 'Product Service API',
@@ -84,26 +102,26 @@ export class ProductServiceStack extends cdk.Stack {
 		productsTable.grantWriteData(createProduct);
 		stocksTable.grantWriteData(createProduct);
 
-    productsTable.grantWriteData(catalogBatchProcess);
+		productsTable.grantWriteData(catalogBatchProcess);
 		stocksTable.grantWriteData(catalogBatchProcess);
+		createProductTopic.grantPublish(catalogBatchProcess);
 
 		const products = api.root.addResource('products');
 		products.addMethod(
 			'GET',
 			new apigateway.LambdaIntegration(getProductsList)
 		);
-    products.addMethod('POST', new apigateway.LambdaIntegration(createProduct));
+		products.addMethod('POST', new apigateway.LambdaIntegration(createProduct));
 
 		const product = products.addResource('{productId}');
 		product.addMethod('GET', new apigateway.LambdaIntegration(getProductsById));
-		
 
 		new cdk.CfnOutput(this, 'ApiEndpoint', {
 			value: api.url,
 			description: 'API endpoint',
 		});
 
-    new cdk.CfnOutput(this, 'SQSQueueURL', {
+		new cdk.CfnOutput(this, 'SQSQueueURL', {
 			value: catalogItemsQueue.queueUrl,
 			description: 'SQS Queue URL',
 		});
