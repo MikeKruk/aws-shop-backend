@@ -76,6 +76,12 @@ export async function handler(event: SQSEvent) {
 						),
 					].join('\n'),
 					Subject: 'Product imported successfully',
+					MessageAttributes: {
+						count: {
+							DataType: 'Number',
+							StringValue: String(createdProducts.length),
+						},
+					},
 				})
 			);
 		} catch (error) {

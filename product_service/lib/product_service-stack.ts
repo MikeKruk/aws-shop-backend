@@ -73,7 +73,23 @@ export class ProductServiceStack extends cdk.Stack {
 		);
 
 		createProductTopic.addSubscription(
-			new snsSubscriptions.EmailSubscription('mi.kruk95@gmail.com')
+			new snsSubscriptions.EmailSubscription('mi.kruk95@gmail.com', {
+				filterPolicy: {
+					count: sns.SubscriptionFilter.numericFilter({
+						greaterThan: 2,
+					}),
+				},
+			})
+		);
+
+		createProductTopic.addSubscription(
+			new snsSubscriptions.EmailSubscription('mi.kruk98@gmail.com', {
+				filterPolicy: {
+					count: sns.SubscriptionFilter.numericFilter({
+						lessThanOrEqualTo: 2,
+					}),
+				},
+			})
 		);
 
 		catalogBatchProcess.addEventSource(
