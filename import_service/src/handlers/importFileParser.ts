@@ -4,14 +4,21 @@ import {
 	GetObjectCommand,
 	S3Client,
 } from '@aws-sdk/client-s3';
+import {
+	SendMessageCommand,
+	SendMessageCommandOutput,
+	SQSClient,
+} from '@aws-sdk/client-sqs';
 import { S3Event } from 'aws-lambda';
 import csvParser from 'csv-parser';
 import { Readable } from 'stream';
 
+const client = new S3Client({
+	region: process.env.REGION,
+});
+const sqs = new SQSClient({});
+
 export async function handler(event: S3Event) {
-	const client = new S3Client({
-		region: process.env.REGION,
-	});
 	console.log('importFileParser event:', event);
 
 	for (const record of event.Records) {
@@ -25,6 +32,7 @@ export async function handler(event: S3Event) {
 
 		const response = await client.send(command);
 		const stream = response.Body as Readable;
+		const sqsPromises: Promise<SendMessageCommandOutput>[] = [];
 
 		await new Promise((res, rej) => {
 			stream
@@ -33,9 +41,20 @@ export async function handler(event: S3Event) {
 						separator: ';',
 					})
 				)
-				.on('data', async data => console.log('CSV row', data))
+				.on('data', async data => {
+					sqsPromises.push(
+						sqs.send(
+							new SendMessageCommand({
+								QueueUrl: process.env.QUEUE_URL,
+								MessageBody: JSON.stringify(data),
+							},)
+						)
+					);
+				})
 				.on('end', async () => {
 					try {
+						await Promise.all(sqsPromises);
+
 						const copyCommand = new CopyObjectCommand({
 							Bucket: bucketName,
 							CopySource: `${bucketName}/${key}`,
