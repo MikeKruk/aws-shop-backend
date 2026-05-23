@@ -79,7 +79,7 @@ export async function handler(event: SQSEvent) {
 					MessageAttributes: {
 						count: {
 							DataType: 'Number',
-							StringValue: String(createdProducts.length),
+							StringValue: String(Math.max(...createdProducts.map(product => product.count))),
 						},
 					},
 				})
