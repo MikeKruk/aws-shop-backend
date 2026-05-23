@@ -1,14 +1,12 @@
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { APIGatewayProxyEvent } from 'aws-lambda';
 import { handler } from '../src/handlers/importProductsFile';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 jest.mock('@aws-sdk/client-s3', () => {
 	return {
-		S3Client: jest.fn().mockImplementation(() => {
-			return {
-				send: jest.fn(),
-			};
-		}),
+		S3Client: jest.fn().mockImplementation(() => ({
+			send: jest.fn(),
+		})),
 		PutObjectCommand: jest.fn(),
 	};
 });
@@ -40,7 +38,7 @@ describe('importProductsFile ', () => {
 		expect(getSignedUrl).toHaveBeenCalledTimes(1);
 	});
 
-  test('should return 400 and error message when name is missing', async () => {
+	test('should return 400 and error message when name is missing', async () => {
 		const event = {
 			queryStringParameters: null,
 		} as Partial<APIGatewayProxyEvent> as APIGatewayProxyEvent;
@@ -49,6 +47,6 @@ describe('importProductsFile ', () => {
 
 		expect(result.statusCode).toBe(400);
 		expect(JSON.parse(result.body).message).toBe('Missing fileName parameter');
-    expect(getSignedUrl).not.toHaveBeenCalled();
+		expect(getSignedUrl).not.toHaveBeenCalled();
 	});
 });
