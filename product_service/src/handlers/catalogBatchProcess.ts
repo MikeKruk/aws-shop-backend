@@ -63,7 +63,18 @@ export async function handler(event: SQSEvent) {
 			await sns.send(
 				new PublishCommand({
 					TopicArn: process.env.SNS_TOPIC_ARN,
-					Message: JSON.stringify(createdProducts),
+					Message: [
+						`Products successfully imported: ${createdProducts.length}`,
+						'',
+						...createdProducts.map(
+							(product, index) =>
+								`${index + 1}. Title: ${product.title}
+                Description: ${product.description}
+                Price: ${product.price}
+                Count: ${product.count}
+                `
+						),
+					].join('\n'),
 					Subject: 'Product imported successfully',
 				})
 			);
