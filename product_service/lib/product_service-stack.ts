@@ -5,6 +5,8 @@ import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as cdk from 'aws-cdk-lib/core';
 import { Construct } from 'constructs';
 import * as path from 'path';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
+import * as lambdaEventSources from 'aws-cdk-lib/aws-lambda-event-sources';
 
 export class ProductServiceStack extends cdk.Stack {
 	constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -22,6 +24,10 @@ export class ProductServiceStack extends cdk.Stack {
 			'StocksTable',
 			'Stocks'
 		);
+
+    const catalogItemsQueue = new sqs.Queue(this, 'CatalogItemsQueue', {
+      queueName: 'catalog-items-queue'
+    });
 
 		const lambdaProps = {
 			runtime: Runtime.NODEJS_LATEST,
@@ -47,6 +53,17 @@ export class ProductServiceStack extends cdk.Stack {
 			...lambdaProps,
 		});
 
+    const catalogBatchProcess = new NodejsFunction(this, 'CatalogBatchProcess', {
+      entry: path.join(__dirname, '../src/handlers/catalogBatchProcess.ts'),
+      ...lambdaProps,
+    });
+
+    catalogBatchProcess.addEventSource(
+      new lambdaEventSources.SqsEventSource(catalogItemsQueue, {
+        batchSize: 5
+      })
+    )
+
 		const api = new apigateway.RestApi(this, 'ProductServiceApi', {
 			restApiName: 'Product Service API',
 			defaultCorsPreflightOptions: {
@@ -67,6 +84,9 @@ export class ProductServiceStack extends cdk.Stack {
 		productsTable.grantWriteData(createProduct);
 		stocksTable.grantWriteData(createProduct);
 
+    productsTable.grantWriteData(catalogBatchProcess);
+		stocksTable.grantWriteData(catalogBatchProcess);
+
 		const products = api.root.addResource('products');
 		products.addMethod(
 			'GET',
@@ -81,6 +101,11 @@ export class ProductServiceStack extends cdk.Stack {
 		new cdk.CfnOutput(this, 'ApiEndpoint', {
 			value: api.url,
 			description: 'API endpoint',
+		});
+
+    new cdk.CfnOutput(this, 'SQSQueueURL', {
+			value: catalogItemsQueue.queueUrl,
+			description: 'SQS Queue URL',
 		});
 	}
 }
