@@ -1,3 +1,4 @@
+import * as iam from 'aws-cdk-lib/aws-iam';
 import { Runtime } from 'aws-cdk-lib/aws-lambda';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as cdk from 'aws-cdk-lib/core';
@@ -6,7 +7,7 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { GITHUB_ACCOUNT_LOGIN } from '../src/constants';
 
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, '../.env.local') });
 
 export class AuthorizationServiceStack extends cdk.Stack {
 	constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -28,8 +29,13 @@ export class AuthorizationServiceStack extends cdk.Stack {
 			},
 		});
 
+		basicAuthorizer.grantInvoke(
+			new iam.ServicePrincipal('apigateway.amazonaws.com')
+		);
+
 		new cdk.CfnOutput(this, 'BasicAuthorizerArn', {
 			value: basicAuthorizer.functionArn,
+			exportName: 'BasicAuthorizerArn',
 		});
 	}
 }
