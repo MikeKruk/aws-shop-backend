@@ -1,0 +1,1 @@
+export const GITHUB_ACCOUNT_LOGIN = 'MikeKruk';

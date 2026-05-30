@@ -4,7 +4,6 @@ import {
 	APIGatewayTokenAuthorizerEvent,
 	Context,
 } from 'aws-lambda';
-import 'dotenv/config';
 
 type Effect = 'Allow' | 'Deny';
 
