@@ -1,16 +1,34 @@
-import { S3Client } from '@aws-sdk/client-s3';
-import { S3Event } from 'aws-lambda';
 import { Readable } from 'stream';
-import { handler } from '../src/handlers/importFileParser';
+
+const mockS3Send = jest.fn();
+const mockSQSSend = jest.fn();
 
 jest.mock('@aws-sdk/client-s3', () => {
 	return {
-		S3Client: jest.fn(),
-		CopyObjectCommand: jest.fn(),
-		GetObjectCommand: jest.fn(),
-		DeleteObjectCommand: jest.fn(),
+		S3Client: jest.fn().mockImplementation(() => ({ send: mockS3Send })),
+		CopyObjectCommand: jest
+			.fn()
+			.mockImplementation(args => ({ __type: 'Copy', ...args })),
+		GetObjectCommand: jest
+			.fn()
+			.mockImplementation(args => ({ __type: 'Get', ...args })),
+		DeleteObjectCommand: jest
+			.fn()
+			.mockImplementation(args => ({ __type: 'Delete', ...args })),
 	};
 });
+
+jest.mock('@aws-sdk/client-sqs', () => {
+	return {
+		SQSClient: jest.fn().mockImplementation(() => ({ send: mockSQSSend })),
+		SendMessageCommand: jest
+			.fn()
+			.mockImplementation(args => ({ __type: 'SendMessage', ...args })),
+	};
+});
+
+import { S3Event } from 'aws-lambda';
+import { handler } from '../src/handlers/importFileParser';
 
 const mockEvent = {
 	Records: [
@@ -28,12 +46,15 @@ const mockEvent = {
 } as unknown as S3Event;
 
 describe('importFileParser ', () => {
-	let mockSend: jest.Mock;
 	beforeEach(() => {
 		jest.clearAllMocks();
 		process.env.REGION = 'us-east-1';
 		process.env.BUCKET_NAME = 'test-bucket';
+		process.env.QUEUE_URL = 'test-queue-url';
+    mockSQSSend.mockResolvedValue({});
+	});
 
+	test('should send each CSV record to SQS', async () => {
 		const stream = new Readable({
 			read() {
 				this.push('title;price\n');
@@ -42,28 +63,38 @@ describe('importFileParser ', () => {
 			},
 		});
 
-		mockSend = jest.fn().mockResolvedValue({ Body: stream });
-		(S3Client as jest.Mock).mockImplementation(() => {
-			return {
-				send: mockSend,
-			};
+		mockS3Send.mockResolvedValue({
+			Body: stream,
 		});
-	});
-
-	test('should parse CSV and log each record', async () => {
-		const consoleSpy = jest.spyOn(console, 'log');
 
 		await handler(mockEvent);
 
-		expect(consoleSpy).toHaveBeenCalledWith('CSV row', {
-			title: 'AK-47',
-			price: '15',
-		});
+		expect(mockSQSSend).toHaveBeenCalledTimes(1);
+		expect(mockSQSSend).toHaveBeenCalledWith(
+			expect.objectContaining({
+				__type: 'SendMessage',
+				MessageBody: JSON.stringify({ title: 'AK-47', price: '15' }),
+			})
+		);
 	});
 
 	test('should copy and delete file after parsing', async () => {
+		const stream = new Readable({
+			read() {
+				this.push('title;price\n');
+				this.push('AK-47;15\n');
+				this.push(null);
+			},
+		});
+
+		mockS3Send
+			.mockResolvedValueOnce({
+				Body: stream,
+			})
+			.mockResolvedValueOnce({})
+			.mockResolvedValueOnce({});
 		await handler(mockEvent);
 
-		expect(mockSend).toHaveBeenCalledTimes(3);
+		expect(mockS3Send).toHaveBeenCalledTimes(3);
 	});
 });
