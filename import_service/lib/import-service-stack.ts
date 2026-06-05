@@ -1,5 +1,5 @@
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
-import { Runtime } from 'aws-cdk-lib/aws-lambda';
+import { Function, Runtime } from 'aws-cdk-lib/aws-lambda';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
@@ -47,6 +47,13 @@ export class ImportServiceStack extends cdk.Stack {
 			},
 		});
 
+		const basicAuthorizerArn = cdk.Fn.importValue('BasicAuthorizerArn');
+		const basicAuthorizerLambda = Function.fromFunctionArn(
+			this,
+			'BasicAuthorizerLambda',
+			basicAuthorizerArn
+		);
+
 		bucket.grantReadWrite(importProductsFile);
 		bucket.grantReadWrite(importFileParser);
 		catalogItemsQueue.grantSendMessages(importFileParser);
@@ -62,10 +69,40 @@ export class ImportServiceStack extends cdk.Stack {
 			},
 		});
 
+		new apigateway.GatewayResponse(this, 'UnauthorizedResponse', {
+			restApi: api,
+			type: apigateway.ResponseType.UNAUTHORIZED,
+			statusCode: '401',
+			responseHeaders: {
+				'Access-Control-Allow-Origin': "'*'",
+			},
+		});
+
+		new apigateway.GatewayResponse(this, 'AccessDeniedResponse', {
+			restApi: api,
+			type: apigateway.ResponseType.ACCESS_DENIED,
+			statusCode: '403',
+			responseHeaders: {
+				'Access-Control-Allow-Origin': "'*'",
+			},
+		});
+
+		const authorizer = new apigateway.TokenAuthorizer(
+			this,
+			'BasicTokenAuthorizer',
+			{
+				handler: basicAuthorizerLambda,
+				resultsCacheTtl: cdk.Duration.seconds(0),
+			}
+		);
+
 		const importResource = api.root.addResource('import');
 		importResource.addMethod(
 			'GET',
-			new apigateway.LambdaIntegration(importProductsFile)
+			new apigateway.LambdaIntegration(importProductsFile),
+			{
+				authorizer,
+			}
 		);
 
 		new cdk.CfnOutput(this, 'ApiEndpoint', {
