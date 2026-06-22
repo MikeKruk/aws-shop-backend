@@ -7,7 +7,14 @@ dotenv.config();
 const PORT = process.env.PORT || 3000;
 
 const server = http.createServer((req, res) => {
-	console.log('url', req.url);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(200);
+    return res.end();
+  }
 
 	const [pathName, queryString] = req.url.split('?');
 	const pathParts = pathName.split('/').filter(Boolean);
@@ -15,7 +22,6 @@ const server = http.createServer((req, res) => {
 	const serviceName = pathParts[0];
 	const servicePath = process.env[serviceName.toUpperCase()];
 
-	console.log({ pathName, queryString, pathParts, serviceName, servicePath });
 
 	if (!servicePath) {
 		res.writeHead(502, { 'Content-Type': 'application/json' });
@@ -24,10 +30,11 @@ const server = http.createServer((req, res) => {
 
 	const restPath = pathParts.slice(1).join('/');
 	const forwardPath = `/${restPath}${queryString ? `?${queryString}` : ''}`;
-	console.log('forwardPath', forwardPath);
 
 	const targetUrl = `${servicePath}${forwardPath}`;
-	console.log('targetUrl', targetUrl);
+
+	const proxyHeaders = { ...req.headers };
+	delete proxyHeaders.host;
 
 	const client = servicePath.startsWith('https') ? https : http;
 
@@ -40,7 +47,7 @@ const server = http.createServer((req, res) => {
 
 		const proxyReq = client.request(
 			targetUrl,
-			{ method: req.method, headers: req.headers },
+			{ method: req.method, headers: proxyHeaders },
 			proxyRes => {
 				const resBodyChunks = [];
 
